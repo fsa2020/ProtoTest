@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package pbt;
+
+message User {
+  int32 id = 1;
+  string name = 2;
+  string email = 3;
+  int32 age = 4;
+  repeated string tags = 5;
+  double score = 8;
+}
+
