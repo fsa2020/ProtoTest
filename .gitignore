@@ -1,0 +1,49 @@
+# Unreal Engine
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+Binaries/
+Plugins/*/Intermediate/
+Plugins/*/Binaries/
+
+# Visual Studio
+.vs/
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.vcproj
+*.vcproj.user
+
+# Rider / JetBrains
+.idea/
+*.sln.DotSettings.user
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Project files
+*.opensdf
+*.db
+*.log
+*.manifest
+*.user
+*.tmp
+
+# Code coverage
+*.coverage
+*.coveragexml
+
+# Minidump files
+*.mdmp
+*.dmp
