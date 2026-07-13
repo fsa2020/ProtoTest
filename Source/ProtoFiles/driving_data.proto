@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package pbt;
+
+option optimize_for = LITE_RUNTIME;
+
+// ===================================================================
+// 基础类型
+// ===================================================================
+
+
+message Vec3 {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+// ===================================================================
+// Ego 大类：自车 + 周边障碍物
+// ===================================================================
+
+message Ego {
+  EgoVehicle vehicle = 1;
+  repeated Obstacle obstacles = 2;
+}
+
+message EgoVehicle {
+  int32 id = 1;
+  Vec3 position = 2;          // 世界坐标 (m)
+  Vec3 velocity = 3;          // 速度 (m/s)
+  Vec3 rotation = 5;          // roll, pitch, yaw (度)
+  int64 timestamp = 10;       // 时间戳 (ms)
+}
+
+enum ObstacleType {
+  OBSTACLE_UNKNOWN = 0;
+  OBSTACLE_VEHICLE = 1;
+  OBSTACLE_PEDESTRIAN = 2;
+  OBSTACLE_CYCLIST = 3;
+  OBSTACLE_TRUCK = 4;
+  OBSTACLE_BUS = 5;
+  OBSTACLE_MOTORCYCLE = 6;
+  OBSTACLE_ANIMAL = 7;
+  OBSTACLE_CONE = 8;          // 锥桶/路障
+  OBSTACLE_GUARDRAIL = 9;     // 护栏
+}
+
+message Obstacle {
+  int32 id = 1;
+  ObstacleType type = 2;
+  Vec3 position = 3;          // 世界坐标 (m)
+  Vec3 velocity = 4;          // 速度 (m/s)
+  Vec3 size = 6;              // 长宽高 (m)
+  double heading = 7;         // 朝向角 (度)
+}
+
+
+// ===================================================================
+// Cross 大类：车道线 / 地面标识 / 可行驶区域
+// ===================================================================
+
+message Cross {
+  repeated LaneLine lane_lines = 1;
+  repeated GroundSign ground_signs = 2;
+  repeated DrivableArea drivable_areas = 3;
+}
+
+enum LaneLineType {
+  LANE_UNKNOWN = 0;
+  LANE_SOLID = 1;
+  LANE_DASHED = 2;
+  LANE_DOUBLE_SOLID = 3;
+  LANE_DOUBLE_DASHED = 4;
+  LANE_SOLID_DASHED = 5;      // 左实右虚 / 左虚右实
+  LANE_CURB = 6;              // 路沿
+  LANE_ROAD_EDGE = 7;         // 道路边缘
+}
+
+enum LaneLineColor {
+  LANE_COLOR_UNKNOWN = 0;
+  LANE_COLOR_WHITE = 1;
+  LANE_COLOR_YELLOW = 2;
+  LANE_COLOR_BLUE = 3;
+  LANE_COLOR_GREEN = 4;
+}
+
+message LaneLine {
+  int32 id = 1;
+  LaneLineType type = 2;
+  LaneLineColor color = 3;
+  repeated Vec3 points = 4;   // 车道线采样点序列
+  double confidence = 5;      // 检测置信度 [0, 1]
+  double width = 6;           // 线宽 (m)
+}
+
+enum GroundSignType {
+  SIGN_UNKNOWN = 0;
+  SIGN_ARROW_STRAIGHT = 1;       // 直行箭头
+  SIGN_ARROW_LEFT = 2;           // 左转箭头
+  SIGN_ARROW_RIGHT = 3;          // 右转箭头
+  SIGN_ARROW_UTURN = 4;          // 掉头箭头
+  SIGN_ARROW_STRAIGHT_LEFT = 5;  // 直行+左转
+  SIGN_ARROW_STRAIGHT_RIGHT = 6; // 直行+右转
+  SIGN_ARROW_LEFT_RIGHT = 7;     // 左转+右转
+  SIGN_CROSSWALK = 8;            // 人行横道
+  SIGN_STOP_LINE = 9;            // 停止线
+  SIGN_SPEED_BUMP = 10;          // 减速带
+  SIGN_YIELD_LINE = 11;          // 让行线
+  SIGN_PARKING_SPACE = 12;       // 停车位
+  SIGN_ZEBRA_CROSSING = 13;      // 斑马线
+}
+
+message GroundSign {
+  int32 id = 1;
+  GroundSignType type = 2;
+  repeated Vec3 polygon = 3;  // 标识区域多边形边界
+}
+
+message DrivableArea {
+  int32 id = 1;
+  repeated Vec3 boundary = 2; // 区域边界点（闭合多边形）
+  double confidence = 3;      // 检测置信度 [0, 1]
+  double speed_limit = 4;     // 限速 (km/h)，-1 表示未知
+}
+
+// ===================================================================
+// 顶层数据帧
+// ===================================================================
+
+message DrivingDataFrame {
+  int64 frame_id = 1;
+  int64 timestamp = 2;
+  Ego ego = 3;
+  Cross cross = 4;
+}
+
