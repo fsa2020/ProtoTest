@@ -47,3 +47,5 @@ Thumbs.db
 # Minidump files
 *.mdmp
 *.dmp
+
+__pycache__
