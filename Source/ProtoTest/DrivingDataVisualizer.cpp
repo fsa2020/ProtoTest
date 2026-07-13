@@ -1,11 +1,37 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DrivingDataVisualizer.h"
+#include "DrivingDataColors.h"
 #include "DrawDebugHelpers.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/PlayerController.h"
 
 ADrivingDataVisualizer::ADrivingDataVisualizer()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	// ── 俯视跟随相机 ──
+	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+	SpringArm->SetupAttachment(RootComponent);
+	SpringArm->TargetArmLength = 3000.0f;          // 30m 高度
+	SpringArm->SetRelativeRotation(FRotator(-60.0f, 0.0f, 0.0f)); // 俯视角度
+	SpringArm->bDoCollisionTest = false;
+	SpringArm->bInheritPitch = false;
+	SpringArm->bInheritRoll = false;
+
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	FollowCamera->SetupAttachment(SpringArm);
+}
+
+void ADrivingDataVisualizer::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		PC->bShowMouseCursor = true;
+	}
 }
 
 void ADrivingDataVisualizer::SetEgoData(const pbt::Ego& InEgo)
@@ -21,146 +47,76 @@ void ADrivingDataVisualizer::SetCrossData(const pbt::Cross& InCross)
 }
 
 // ═══════════════════════════════════════════════════════
-//  颜色映射
+//  绘制辅助（颜色定义见 DrivingDataColors.h）
 // ═══════════════════════════════════════════════════════
 
-FColor ADrivingDataVisualizer::GetObstacleColor(pbt::ObstacleType Type)
-{
-	switch (Type)
-	{
-	case pbt::OBSTACLE_VEHICLE:    return FColor::Red;
-	case pbt::OBSTACLE_PEDESTRIAN: return FColor::Yellow;
-	case pbt::OBSTACLE_CYCLIST:    return FColor::Orange;
-	case pbt::OBSTACLE_TRUCK:      return FColor(200, 0, 0);     // DarkRed
-	case pbt::OBSTACLE_BUS:        return FColor(30, 100, 255);  // Blue
-	case pbt::OBSTACLE_MOTORCYCLE: return FColor::Cyan;
-	case pbt::OBSTACLE_ANIMAL:     return FColor(139, 69, 19);   // Brown
-	case pbt::OBSTACLE_CONE:       return FColor::Magenta;
-	case pbt::OBSTACLE_GUARDRAIL:  return FColor(180, 180, 180); // Gray
-	default:                       return FColor::White;
-	}
-}
-
-FColor ADrivingDataVisualizer::GetLaneLineColor(pbt::LaneLineType Type, pbt::LaneLineColor Color)
-{
-	// 优先使用车道线颜色（白/黄/蓝/绿）
-	switch (Color)
-	{
-	case pbt::LANE_COLOR_WHITE:  return FColor(240, 240, 240);
-	case pbt::LANE_COLOR_YELLOW: return FColor::Yellow;
-	case pbt::LANE_COLOR_BLUE:   return FColor(50, 100, 255);
-	case pbt::LANE_COLOR_GREEN:  return FColor(50, 200, 50);
-	default:
-		// 根据线型回退
-		switch (Type)
-		{
-		case pbt::LANE_CURB:      return FColor(160, 160, 160);
-		case pbt::LANE_ROAD_EDGE: return FColor(100, 100, 100);
-		default:                  return FColor::White;
-		}
-	}
-}
-
-FColor ADrivingDataVisualizer::GetGroundSignColor(pbt::GroundSignType Type)
-{
-	switch (Type)
-	{
-	case pbt::SIGN_CROSSWALK:
-	case pbt::SIGN_ZEBRA_CROSSING:
-		return FColor(220, 220, 220);
-	case pbt::SIGN_STOP_LINE:
-		return FColor::Red;
-	case pbt::SIGN_SPEED_BUMP:
-		return FColor(255, 200, 50);
-	case pbt::SIGN_YIELD_LINE:
-		return FColor::Orange;
-	case pbt::SIGN_PARKING_SPACE:
-		return FColor(50, 150, 255);
-	// 各类箭头
-	default:
-		return FColor(200, 100, 255); // Purple
-	}
-}
-
-FColor ADrivingDataVisualizer::GetDrivableAreaColor(int32 Index)
-{
-	static const FColor Colors[] = {
-		FColor(0, 200, 100),   // Green
-		FColor(50, 150, 200),  // LightBlue
-		FColor(150, 200, 50),  // YellowGreen
-	};
-	return Colors[Index % 3];
-}
-
-// ═══════════════════════════════════════════════════════
-//  绘制辅助
-// ═══════════════════════════════════════════════════════
-
-void ADrivingDataVisualizer::DrawBox(const FVector& Center, const FVector& Extent, double Heading, const FColor& Color) const
+void ADrivingDataVisualizer::DrawBox(const FVector& Center, const FVector& Extent, double Heading, const FColor& Color, float Thickness) const
 {
 	const FQuat Rot = FRotator(0.0, Heading, 0.0).Quaternion();
 	DrawDebugBox(GetWorld(), Center, Extent, Rot, Color,
-		/*bPersistentLines=*/false, /*LifeTime=*/-1.0f, /*DepthPriority=*/0, LineThickness);
+		false, -1.0f, 0, Thickness);
 }
 
-void ADrivingDataVisualizer::DrawArrow(const FVector& From, const FVector& To, const FColor& Color) const
+void ADrivingDataVisualizer::DrawArrow(const FVector& From, const FVector& To, const FColor& Color, float Thickness) const
 {
-	DrawDebugLine(GetWorld(), From, To, Color, false, -1.0f, 0, LineThickness);
+	DrawDebugLine(GetWorld(), From, To, Color, false, -1.0f, 0, Thickness);
 
-	// 简单箭头尖端
 	const float ArrowLen = 30.0f;
 	const FVector Dir = (To - From).GetSafeNormal();
 	if (!Dir.IsNearlyZero())
 	{
 		const FVector Right = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
-		DrawDebugLine(GetWorld(), To, To - Dir * ArrowLen + Right * ArrowLen * 0.5f, Color, false, -1.0f, 0, LineThickness);
-		DrawDebugLine(GetWorld(), To, To - Dir * ArrowLen - Right * ArrowLen * 0.5f, Color, false, -1.0f, 0, LineThickness);
+		DrawDebugLine(GetWorld(), To, To - Dir * ArrowLen + Right * ArrowLen * 0.5f, Color, false, -1.0f, 0, Thickness);
+		DrawDebugLine(GetWorld(), To, To - Dir * ArrowLen - Right * ArrowLen * 0.5f, Color, false, -1.0f, 0, Thickness);
 	}
 }
 
-void ADrivingDataVisualizer::DrawPolygon(const TArray<FVector>& Points, const FColor& Color) const
+void ADrivingDataVisualizer::DrawPolygon(const TArray<FVector>& Points, const FColor& Color, float Thickness) const
 {
 	if (Points.Num() < 2) return;
 	for (int32 i = 0; i < Points.Num(); ++i)
 	{
 		const int32 Next = (i + 1) % Points.Num();
-		DrawDebugLine(GetWorld(), Points[i], Points[Next], Color, false, -1.0f, 0, LineThickness);
+		DrawDebugLine(GetWorld(), Points[i], Points[Next], Color, false, -1.0f, 0, Thickness);
 	}
 }
 
-void ADrivingDataVisualizer::DrawPolyline(const TArray<FVector>& Points, const FColor& Color) const
+void ADrivingDataVisualizer::DrawPolyline(const TArray<FVector>& Points, const FColor& Color, float Thickness) const
 {
 	if (Points.Num() < 2) return;
 	for (int32 i = 0; i < Points.Num() - 1; ++i)
 	{
-		DrawDebugLine(GetWorld(), Points[i], Points[i + 1], Color, false, -1.0f, 0, LineThickness);
+		DrawDebugLine(GetWorld(), Points[i], Points[i + 1], Color, false, -1.0f, 0, Thickness);
 	}
 }
 
 // ═══════════════════════════════════════════════════════
-//  可视化绘制
+//  可视化绘制（所有绘制基于 WorldAnchor，不依赖 ActorLocation）
 // ═══════════════════════════════════════════════════════
 
 void ADrivingDataVisualizer::DrawEgo()
 {
 	if (!CachedEgo.IsSet()) return;
 	const pbt::Ego& Ego = CachedEgo.GetValue();
-	const FVector Origin = GetActorLocation();
 
-	// proto 坐标单位是米，UE 单位是厘米
 	static constexpr float M_TO_CM = 100.0f;
 
-	// ── 自车：绿色包围盒 + 速度箭头 ──
+	// ── 自车：计算世界坐标 → 更新 Public 属性 + 可选相机跟随 ──
 	if (Ego.has_vehicle())
 	{
 		const auto& V = Ego.vehicle();
-		const FVector Pos(
+		const FVector EgoPosCM(
 			static_cast<float>(V.position().x()) * M_TO_CM,
 			static_cast<float>(V.position().y()) * M_TO_CM,
 			static_cast<float>(V.position().z()) * M_TO_CM);
-		// EgoBoxExtent 已为 cm，直接使用
 		const float Heading = static_cast<float>(V.rotation().z());
-		DrawBox(Origin + Pos, EgoBoxExtent, Heading, FColor::Green);
+
+		// 记录供外部读取 / Blueprint 使用
+		EgoWorldPosition = WorldAnchor + EgoPosCM;
+		EgoHeading = Heading;
+
+		// 绘制自车包围盒
+		DrawBox(EgoWorldPosition, EgoBoxExtent, Heading, FColor::Green, EgoLineThickness);
 
 		if (bShowVelocityArrows)
 		{
@@ -170,28 +126,28 @@ void ADrivingDataVisualizer::DrawEgo()
 				static_cast<float>(V.velocity().z()) * M_TO_CM);
 			if (!Vel.IsNearlyZero())
 			{
-				DrawArrow(Origin + Pos, Origin + Pos + Vel * VelocityArrowScale, FColor::Green);
+				DrawArrow(EgoWorldPosition, EgoWorldPosition + Vel * VelocityArrowScale, FColor::Green, ArrowThickness);
 			}
 		}
 	}
 
-	// ── 障碍物：按类型着色包围盒 + 速度箭头 ──
+	// ── 障碍物 ──
 	for (int32 i = 0; i < Ego.obstacles_size(); ++i)
 	{
 		const auto& O = Ego.obstacles(i);
-		const FColor C = GetObstacleColor(O.type());
+		const FColor C = DrivingDataColors::Obstacle(O.type());
 		const FVector Pos(
 			static_cast<float>(O.position().x()) * M_TO_CM,
 			static_cast<float>(O.position().y()) * M_TO_CM,
 			static_cast<float>(O.position().z()) * M_TO_CM);
-		// size 单位 m，×100 转 cm，×0.5 得到半尺寸
 		const FVector Ext(
 			static_cast<float>(O.size().x()) * 50.0f,
 			static_cast<float>(O.size().y()) * 50.0f,
 			static_cast<float>(O.size().z()) * 50.0f);
 		const float Heading = static_cast<float>(O.heading());
 
-		DrawBox(Origin + Pos, Ext, Heading, C);
+		const FVector WorldPos = WorldAnchor + Pos;
+		DrawBox(WorldPos, Ext, Heading, C, ObstacleLineThickness);
 
 		if (bShowVelocityArrows)
 		{
@@ -201,7 +157,7 @@ void ADrivingDataVisualizer::DrawEgo()
 				static_cast<float>(O.velocity().z()) * M_TO_CM);
 			if (!Vel.IsNearlyZero())
 			{
-				DrawArrow(Origin + Pos, Origin + Pos + Vel * VelocityArrowScale, C);
+				DrawArrow(WorldPos, WorldPos + Vel * VelocityArrowScale, C, ArrowThickness);
 			}
 		}
 	}
@@ -211,54 +167,53 @@ void ADrivingDataVisualizer::DrawCross()
 {
 	if (!CachedCross.IsSet()) return;
 	const pbt::Cross& Cross = CachedCross.GetValue();
-	const FVector Origin = GetActorLocation();
 
 	static constexpr float M_TO_CM = 100.0f;
-	auto ToFVector = [](const pbt::Vec3& V) -> FVector
+	auto ToWorld = [this](const pbt::Vec3& V) -> FVector
 	{
-		return FVector(
+		return WorldAnchor + FVector(
 			static_cast<float>(V.x()) * M_TO_CM,
 			static_cast<float>(V.y()) * M_TO_CM,
 			static_cast<float>(V.z()) * M_TO_CM);
 	};
 
-	// ── 车道线：按类型+颜色着色，点集连成折线 ──
+	// ── 车道线 ──
 	for (int32 i = 0; i < Cross.lane_lines_size(); ++i)
 	{
 		const auto& LL = Cross.lane_lines(i);
-		const FColor C = GetLaneLineColor(LL.type(), LL.color());
+		const FColor C = DrivingDataColors::LaneLine(LL.type(), LL.color());
 		TArray<FVector> Pts;
 		for (int32 j = 0; j < LL.points_size(); ++j)
 		{
-			Pts.Add(Origin + ToFVector(LL.points(j)));
+			Pts.Add(ToWorld(LL.points(j)));
 		}
-		DrawPolyline(Pts, C);
+		DrawPolyline(Pts, C, LaneLineThickness);
 	}
 
-	// ── 地面标识：点集围成的多边形 ──
+	// ── 地面标识 ──
 	for (int32 i = 0; i < Cross.ground_signs_size(); ++i)
 	{
 		const auto& GS = Cross.ground_signs(i);
-		const FColor C = GetGroundSignColor(GS.type());
+		const FColor C = DrivingDataColors::GroundSign(GS.type());
 		TArray<FVector> Pts;
 		for (int32 j = 0; j < GS.polygon_size(); ++j)
 		{
-			Pts.Add(Origin + ToFVector(GS.polygon(j)));
+			Pts.Add(ToWorld(GS.polygon(j)));
 		}
-		DrawPolygon(Pts, C);
+		DrawPolygon(Pts, C, GroundSignThickness);
 	}
 
-	// ── 可行驶区域：边界多边形 ──
+	// ── 可行驶区域 ──
 	for (int32 i = 0; i < Cross.drivable_areas_size(); ++i)
 	{
 		const auto& DA = Cross.drivable_areas(i);
-		const FColor C = GetDrivableAreaColor(i);
+		const FColor C = DrivingDataColors::DrivableArea(i);
 		TArray<FVector> Pts;
 		for (int32 j = 0; j < DA.boundary_size(); ++j)
 		{
-			Pts.Add(Origin + ToFVector(DA.boundary(j)));
+			Pts.Add(ToWorld(DA.boundary(j)));
 		}
-		DrawPolygon(Pts, C);
+		DrawPolygon(Pts, C, DrivableAreaThickness);
 	}
 }
 
@@ -272,9 +227,47 @@ void ADrivingDataVisualizer::Tick(float DeltaTime)
 
 	if (!bVisualizationEnabled) return;
 
-	// 持续绘制（因为 DrawDebug 的 Lifetime = -1 只在单帧可见）
+	// ── 按住左键拖拽旋转相机 ──
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		static FVector2D LastMouse;
+		float MX, MY;
+		if (PC->GetMousePosition(MX, MY))
+		{
+			const FVector2D CurrMouse(MX, MY);
+			if (PC->IsInputKeyDown(EKeys::LeftMouseButton))
+			{
+				const FVector2D Delta = CurrMouse - LastMouse;
+				if (!Delta.IsNearlyZero())
+				{
+					FRotator Rot = SpringArm->GetRelativeRotation();
+					Rot.Yaw += Delta.X * CameraRotationSpeed * 0.2f;
+					Rot.Pitch = FMath::Clamp(Rot.Pitch - Delta.Y * CameraRotationSpeed * 0.2f, -89.0f, -10.0f);
+					SpringArm->SetRelativeRotation(Rot);
+				}
+			}
+			LastMouse = CurrMouse;
+		}
+	}
+
+	// 锚定世界原点（首次以 Actor 出生位置为基准）
+	if (WorldAnchor.IsNearlyZero() && !GetActorLocation().IsNearlyZero())
+	{
+		WorldAnchor = GetActorLocation();
+	}
+	else if (WorldAnchor.IsNearlyZero())
+	{
+		WorldAnchor = FVector::ZeroVector;
+	}
+
 	DrawEgo();
 	DrawCross();
+
+	// ── 相机跟随：Actor 移到自车位置（SpringArm+Camera 自动跟随）──
+	if (bFollowEgoCamera && CachedEgo.IsSet() && CachedEgo->has_vehicle())
+	{
+		SetActorLocation(EgoWorldPosition);
+	}
 
 	bEgoDirty = false;
 	bCrossDirty = false;

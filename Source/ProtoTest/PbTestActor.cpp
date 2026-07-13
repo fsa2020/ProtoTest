@@ -160,6 +160,13 @@ void APbTestActor::BeginPlay()
 	}
 	UE_LOG(LogTemp, Log, TEXT("[PbTestActor] DrivingDataVisualizer 已创建"));
 
+	// ── 切换视口跟随 Visualizer 的相机 ──
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		PC->SetViewTarget(Viz);
+		UE_LOG(LogTemp, Log, TEXT("[PbTestActor] 视角已切换到 DrivingDataVisualizer"));
+	}
+
 	// ════════════════════════════════════════════════
 	//  读取 & 打印 ego.bin
 	// ════════════════════════════════════════════════
