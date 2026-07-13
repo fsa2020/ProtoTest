@@ -2,7 +2,7 @@
 
 #include "PbTestActor.h"
 #include "ProtobufHelper.h"
-#include "DrivingDataVisualizer.h"
+#include "DrawLineVisualizer/DrivingDataVisualizer.h"
 #include "driving_data.pb.h"
 #include "driving_data.pb.cc"
 
