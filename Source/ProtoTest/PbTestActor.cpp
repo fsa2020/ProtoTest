@@ -2,6 +2,7 @@
 
 #include "PbTestActor.h"
 #include "ProtobufHelper.h"
+#include "DrivingDataVisualizer.h"
 #include "driving_data.pb.h"
 #include "driving_data.pb.cc"
 
@@ -149,6 +150,16 @@ void APbTestActor::BeginPlay()
 
 	const FString BinDir = FPaths::ProjectDir() / TEXT("Source/ProtoFiles/PythonScripts/testBins");
 
+	// ── 动态生成可视化 Actor ──
+	ADrivingDataVisualizer* Viz = GetWorld()->SpawnActor<ADrivingDataVisualizer>(
+		ADrivingDataVisualizer::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+	if (!Viz)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PbTestActor] 无法创建 DrivingDataVisualizer！"));
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("[PbTestActor] DrivingDataVisualizer 已创建"));
+
 	// ════════════════════════════════════════════════
 	//  读取 & 打印 ego.bin
 	// ════════════════════════════════════════════════
@@ -173,6 +184,7 @@ void APbTestActor::BeginPlay()
 			{
 				UE_LOG(LogTemp, Log, TEXT("[PbTestActor] Ego 反序列化成功"));
 				LogEgo(EgoData);
+				Viz->SetEgoData(EgoData);   // ── 传给可视化 ──
 			}
 			else
 			{
@@ -207,6 +219,7 @@ void APbTestActor::BeginPlay()
 			{
 				UE_LOG(LogTemp, Log, TEXT("[PbTestActor] Cross 反序列化成功"));
 				LogCross(CrossData);
+				Viz->SetCrossData(CrossData);  // ── 传给可视化 ──
 			}
 			else
 			{

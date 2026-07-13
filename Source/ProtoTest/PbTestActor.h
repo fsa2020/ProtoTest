@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "PbTestActor.generated.h"
 
+class ADrivingDataVisualizer;
+
 UCLASS()
 class PROTOTEST_API APbTestActor : public AActor
 {
