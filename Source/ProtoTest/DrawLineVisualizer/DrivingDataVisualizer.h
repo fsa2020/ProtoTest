@@ -10,14 +10,19 @@
 class USpringArmComponent;
 class UCameraComponent;
 
+// ── 数据更新委托（手动场景中的 Visualizer 通过监听这些事件接收数据）──
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnEgoDataReceived, const pbt::Ego&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnCrossDataReceived, const pbt::Cross&);
+
 /**
- * 智能驾驶数据可视化 Actor
+ * 智能驾驶数据可视化 Actor（手动放置于场景中）
  * - 自车：自定义大小的包围盒（绿色），带朝向旋转
  * - 障碍物：长宽高包围盒，不同类型不同颜色
  * - 车道线：采样点连成的线，按类型/颜色区分
  * - 地面标识：点集围成的多边形
  * - 可行驶区域：边界多边形
  * - 自带俯视跟随相机（SpringArm + Camera）
+ * - 通过 FOnEgoDataReceived / FOnCrossDataReceived 委托接收数据更新
  */
 UCLASS()
 class PROTOTEST_API ADrivingDataVisualizer : public AActor
@@ -27,11 +32,11 @@ class PROTOTEST_API ADrivingDataVisualizer : public AActor
 public:
 	ADrivingDataVisualizer();
 
-	/** 设置 Ego 数据并触发刷新 */
-	void SetEgoData(const pbt::Ego& InEgo);
+	/** 接收 Ego 数据的事件（由 PbTestActor 等外部调用 Broadcast） */
+	FOnEgoDataReceived OnEgoDataReceived;
 
-	/** 设置 Cross 数据并触发刷新 */
-	void SetCrossData(const pbt::Cross& InCross);
+	/** 接收 Cross 数据的事件（由 PbTestActor 等外部调用 Broadcast） */
+	FOnCrossDataReceived OnCrossDataReceived;
 
 	/** 当前自车世界坐标（每帧更新） */
 	UPROPERTY(BlueprintReadOnly, Category = "DrivingData")
@@ -104,6 +109,12 @@ protected:
 	virtual void Tick(float DeltaTime) override;
 
 private:
+	/** 委托回调：接收 Ego 数据 */
+	void HandleEgoData(const pbt::Ego& InEgo);
+
+	/** 委托回调：接收 Cross 数据 */
+	void HandleCrossData(const pbt::Cross& InCross);
+
 	void DrawEgo();
 	void DrawCross();
 

@@ -15,18 +15,24 @@ ADrivingDataVisualizer::ADrivingDataVisualizer()
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(RootComponent);
 	SpringArm->TargetArmLength = 3000.0f;          // 30m 高度
-	SpringArm->SetRelativeRotation(FRotator(-60.0f, 0.0f, 0.0f)); // 俯视角度
 	SpringArm->bDoCollisionTest = false;
 	SpringArm->bInheritPitch = false;
 	SpringArm->bInheritRoll = false;
 
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(SpringArm);
+
+	// ── 在构造函数中绑定委托，确保早于任何 BeginPlay 中的 Broadcast ──
+	OnEgoDataReceived.AddUObject(this, &ADrivingDataVisualizer::HandleEgoData);
+	OnCrossDataReceived.AddUObject(this, &ADrivingDataVisualizer::HandleCrossData);
 }
 
 void ADrivingDataVisualizer::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// ── 在 BeginPlay 设置俯视角度（构造函数会被关卡序列化覆盖）──
+	SpringArm->SetRelativeRotation(FRotator(-60.0f, 0.0f, 0.0f));
 
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
@@ -34,13 +40,13 @@ void ADrivingDataVisualizer::BeginPlay()
 	}
 }
 
-void ADrivingDataVisualizer::SetEgoData(const pbt::Ego& InEgo)
+void ADrivingDataVisualizer::HandleEgoData(const pbt::Ego& InEgo)
 {
 	CachedEgo = InEgo;
 	bEgoDirty = true;
 }
 
-void ADrivingDataVisualizer::SetCrossData(const pbt::Cross& InCross)
+void ADrivingDataVisualizer::HandleCrossData(const pbt::Cross& InCross)
 {
 	CachedCross = InCross;
 	bCrossDirty = true;

@@ -8,6 +8,7 @@
 
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Kismet/GameplayStatics.h"
 
 // ===================================================================
 // 枚举值 → 名称 手动映射（protobuf-lite 无 _Name() 反射）
@@ -150,15 +151,15 @@ void APbTestActor::BeginPlay()
 
 	const FString BinDir = FPaths::ProjectDir() / TEXT("Source/ProtoFiles/PythonScripts/testBins");
 
-	// ── 动态生成可视化 Actor ──
-	ADrivingDataVisualizer* Viz = GetWorld()->SpawnActor<ADrivingDataVisualizer>(
-		ADrivingDataVisualizer::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+	// ── 查找场景中手动放置的 DrivingDataVisualizer ──
+	ADrivingDataVisualizer* Viz = Cast<ADrivingDataVisualizer>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ADrivingDataVisualizer::StaticClass()));
 	if (!Viz)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PbTestActor] 无法创建 DrivingDataVisualizer！"));
+		UE_LOG(LogTemp, Error, TEXT("[PbTestActor] 场景中未找到 DrivingDataVisualizer！请在场景中手动放置一个。"));
 		return;
 	}
-	UE_LOG(LogTemp, Log, TEXT("[PbTestActor] DrivingDataVisualizer 已创建"));
+	UE_LOG(LogTemp, Log, TEXT("[PbTestActor] 找到场景中的 DrivingDataVisualizer: %s"), *Viz->GetName());
 
 	// ── 切换视口跟随 Visualizer 的相机 ──
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
@@ -191,7 +192,7 @@ void APbTestActor::BeginPlay()
 			{
 				UE_LOG(LogTemp, Log, TEXT("[PbTestActor] Ego 反序列化成功"));
 				LogEgo(EgoData);
-				Viz->SetEgoData(EgoData);   // ── 传给可视化 ──
+				Viz->OnEgoDataReceived.Broadcast(EgoData);   // ── 通过委托发送 ──
 			}
 			else
 			{
@@ -226,7 +227,7 @@ void APbTestActor::BeginPlay()
 			{
 				UE_LOG(LogTemp, Log, TEXT("[PbTestActor] Cross 反序列化成功"));
 				LogCross(CrossData);
-				Viz->SetCrossData(CrossData);  // ── 传给可视化 ──
+				Viz->OnCrossDataReceived.Broadcast(CrossData);  // ── 通过委托发送 ──
 			}
 			else
 			{
